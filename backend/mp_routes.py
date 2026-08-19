@@ -157,6 +157,9 @@ async def mp_config():
 @router.post("/api/payments/mercadopago/preference")
 async def create_preference(body: PreferenceBody, request: Request):
     sdk = _sdk_or_500()
+    # Guarda: pagamento de R$0 (ou negativo) nunca chama o Mercado Pago.
+    if PRICE_BRL <= 0:
+        raise HTTPException(400, "Valor inválido: pagamento de R$ 0,00 não é processado.")
     origin = _resolve_origin(request)
     order_id = f"cl_{uuid.uuid4().hex[:20]}"
     email = str(body.email).strip().lower()
