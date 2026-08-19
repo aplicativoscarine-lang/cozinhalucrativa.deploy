@@ -30,6 +30,8 @@ from fastapi import APIRouter, HTTPException, Request
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
 
+from commissions import assemble_sale_record
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -105,6 +107,7 @@ async def _grant_access(email: str, ref_id: str) -> None:
 
 async def _mark_and_grant(order: dict, payment: dict) -> str:
     """Atualiza o pedido MP com o status do pagamento e libera acesso se approved."""
+    db = _db()
     status = payment.get("status") or "pending"
     email = (
         (payment.get("payer") or {}).get("email")
@@ -119,7 +122,23 @@ async def _mark_and_grant(order: dict, payment: dict) -> str:
     }
     if status == "approved":
         patch["access_granted_at"] = _now()
-    await _db().mp_orders.update_one({"order_id": order["order_id"]}, {"$set": patch})
+
+    # Registro de comissão A/B (definitivo só quando approved).
+    seller_code = order.get("affiliate_code")
+    seller_gen = parent_code = parent_gen = None
+    if seller_code:
+        seller = await db.affiliates.find_one({"code": seller_code}, projection={"_id": 0})
+        if seller:
+            seller_gen = (seller.get("generation") or "A").upper()
+            parent_code = seller.get("parent_affiliate_id")
+            if parent_code:
+                parent = await db.affiliates.find_one({"code": parent_code}, projection={"_id": 0})
+                parent_gen = (parent.get("generation") or "A").upper() if parent else None
+    patch["commission"] = assemble_sale_record(
+        order.get("amount", 0), seller_code, seller_gen, parent_code, parent_gen, status
+    )
+
+    await db.mp_orders.update_one({"order_id": order["order_id"]}, {"$set": patch})
     if status == "approved":
         await _grant_access(email, order["order_id"])
     return status

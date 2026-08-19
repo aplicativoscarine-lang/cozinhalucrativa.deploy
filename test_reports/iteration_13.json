@@ -1,0 +1,37 @@
+{
+  "summary": "Tested (A) A/B affiliate commission rules via API (12 pytest cases, all green) and (B) Marmitas Fitness catalog standardization on landing + internal course page. Seeded Mongo admin session (qa-admin) and mp_orders qa_* to simulate approved/pending/refunded MP sales; test data cleaned up in fixture teardown. Backend: all 4 commission scenarios and all A/B validations behave exactly as specified (A direct 50% = 28.50; B 30% = 17.10; A override 30% = 17.10 -> A total 45.60; pending and refunded orders excluded; B without parent = 400; self-parent PATCH = 400; parent must be A = 400; duplicate code = 409; unauthenticated = 401; per-affiliate commission_rate PATCH returns 200 and does NOT affect the fixed A/B payout). GET /api/courses returns 16 courses with marmita-fitness (6 modules / 28 lessons / 1 apostila, no placeholders). Frontend: marmita card is rendered by the shared OpportunityCard immediately after 'Lanches Kids', with image/title/subtitle/IDEAL PARA/CTA and expanded values exactly 'R$ 150-400', '\u2248 R$ 25 / unidade', '50 marmitas por semana'; no 'A definir' anywhere on landing. /curso/marmita-fitness renders the same layout/testids as /curso/hamburgao-lucrativo (cover, title 'Marmitas Fitness Lucrativas', 3h30min meta, purchase card, curriculum accordion with Modulo 01..06 + lesson lists). No console errors other than expected 401 from auth check while logged out.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/courses/marmita-fitness", "issue": "Endpoint appends a synthetic 'Apostila Oficial' module, so the course reports 7 modules / 29 lessons while the course description text states '6 modulos e 28 aulas'. Same append pattern exists for other courses, so it is consistent, but the copy is now contradictory on screen (header shows '7 modulos')."},
+      {"endpoint": "GET /api/courses/marmita-fitness", "issue": "Unlike other courses (hamburgao, bolos, receitas-kids), marmita-fitness has no 'Pagina de Vendas' module. Confirm whether this is intentional."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Course access CTA on /curso/marmita-fitness", "issue": "Clicking 'Testar sem pagar (modo demo)' (data-testid=dev-enroll-btn) while logged out redirects to Google OAuth. Behaviour appears identical for other courses, so not a marmita-specific regression, but the demo CTA is not usable without login even with BETA_MODE=true.", "affected_selectors": ["[data-testid=\"dev-enroll-btn\"]"]}
+    ],
+    "design_issues": [
+      {"screen": "/curso/marmita-fitness", "issues": ["Meta line shows '7 modulos' while the description right below says '6 modulos e 28 aulas' (counts the appended 'Apostila Oficial' module) - inconsistent copy for the user."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_affiliates_ab.py", "/app/backend/tests/test_courses_catalog.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Decide: exclude the synthetic 'Apostila Oficial' module from the module count shown in CourseDetail meta, or update the marmita description text so '6 modulos' matches the rendered 7.",
+    "Confirm whether marmita-fitness should also get a 'Pagina de Vendas' module like the other courses."
+  ],
+  "critical_code_review_comments": [
+    "affiliate_routes.list_affiliates ignores per-affiliate commission_rate/commission_pct (fixed A/B rates win). The fields are still writable via POST/PATCH and returned as commission_rate_pct=50/30, which can mislead the admin UI - consider removing them or marking them read-only/legacy.",
+    "DELETE /api/affiliates/{code} does not check/clean children: deleting an A leaves its B affiliates with a dangling parent_affiliate_id, silently killing the 30% override. Add a guard (409) or reparent/cascade.",
+    "_stats_for_codes only aggregates mp_orders status='approved' and payment_transactions payment_status='paid'; refunds are handled implicitly by status change. If MP later stores refunds as a separate record while keeping status='approved', commissions would not be reverted - consider an explicit exclusion list."
+  ],
+  "updated_files": ["/app/backend/tests/test_affiliates_ab.py", "/app/backend/tests/test_courses_catalog.py"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% of requested checks passed (2 minor copy/consistency notes)"},
+  "seed_data_creation": "Mongo (cozinha_lucrativa): users{user_id:'admin-uid'}, user_sessions{session_token:'qa-admin'}, affiliates A01/B01, mp_orders qa_a1/qa_b1/qa_b2/qa_b3 - all removed by module fixture teardown after the run.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "Admin via seeded Bearer token 'qa-admin' (email aplicativos.carine@gmail.com) as documented in /app/memory/test_credentials.md",
+  "context_for_next_testing_agent": "Run affiliate tests with pytest; the affiliate class is order-dependent and its module fixture deletes the qa-admin session on teardown, so keep TestAffiliateAB in its own file (courses tests were moved to test_courses_catalog.py to stay xdist-safe with --dist loadscope). Use BASE_URL from /app/frontend/.env (https://resume-deploy-8.preview.emergentagent.com) - the URL in the review request was stale.",
+  "rca_of_the_issue": "No functional defect found. The '7 modulos' display comes from CourseDetail.jsx line ~152 using course.modules.length while the /api/courses/{slug} handler injects an extra 'Apostila Oficial' pseudo-module, so the count is 1 higher than the authored 6 modules in /app/frontend/lib/courses-seed.js."
+}

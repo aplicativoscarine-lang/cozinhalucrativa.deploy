@@ -30,11 +30,9 @@ export default function AffiliatesAdmin() {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
   const [totals, setTotals] = useState({ clicks: 0, sales: 0, revenue: 0, commission: 0 });
-  const [defaultPct, setDefaultPct] = useState(40);
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
-  const [pct, setPct] = useState("40");
   const [generation, setGeneration] = useState("A");
   const [parentCode, setParentCode] = useState("");
   const [creating, setCreating] = useState(false);
@@ -48,7 +46,6 @@ export default function AffiliatesAdmin() {
       const { data } = await api.get("/affiliates");
       setItems(data.items || []);
       setTotals(data.totals || { clicks: 0, sales: 0, revenue: 0, commission: 0 });
-      setDefaultPct(data.default_commission_pct ?? 40);
     } catch (e) {
       toast.error(e.response?.data?.detail || "Erro ao carregar afiliados.");
     } finally {
@@ -79,12 +76,11 @@ export default function AffiliatesAdmin() {
       await api.post("/affiliates", {
         name: name.trim(),
         code: code.trim() || undefined,
-        commission_pct: pct === "" ? undefined : Number(pct),
         generation,
         parent_code: generation === "B" ? parentCode : undefined,
       });
       toast.success("Afiliado criado!");
-      setName(""); setCode(""); setPct(String(defaultPct)); setGeneration("A"); setParentCode("");
+      setName(""); setCode(""); setGeneration("A"); setParentCode("");
       await load();
     } catch (e2) {
       toast.error(e2.response?.data?.detail || "Erro ao criar afiliado.");
@@ -103,17 +99,6 @@ export default function AffiliatesAdmin() {
       setTimeout(() => setCopied(""), 1500);
     } catch {
       toast.error("Não foi possível copiar.");
-    }
-  };
-
-  const saveCommission = async (c, newPct) => {
-    const val = Number(newPct);
-    if (Number.isNaN(val) || val < 0 || val > 100) { toast.error("Comissão inválida (0–100)."); return; }
-    try {
-      await api.patch(`/affiliates/${c}`, { commission_pct: val });
-      await load();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || "Erro ao atualizar.");
     }
   };
 
@@ -178,18 +163,14 @@ export default function AffiliatesAdmin() {
         {/* Criar afiliado */}
         <form onSubmit={handleCreate} data-testid="create-affiliate-form" className="mt-8 rounded-[24px] border border-[#EED3C3] bg-white/85 p-6">
           <p className="mb-4 flex items-center gap-2 font-display text-lg font-bold text-[#2E1B12]"><Plus className="h-4 w-4 text-[#8A3F21]" /> Novo afiliado</p>
-          <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_0.7fr] md:items-end">
+          <div className="grid gap-3 md:grid-cols-2 md:items-end">
             <div>
               <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-[#8A3F21]">Nome</label>
-              <Input data-testid="affiliate-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Maria Silva" className="h-11 rounded-xl border-[#EED3C3] bg-white text-[#2E1B12]" />
+              <Input data-testid="affiliate-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Cirlene" className="h-11 rounded-xl border-[#EED3C3] bg-white text-[#2E1B12]" />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-[#8A3F21]">Código (opcional)</label>
+              <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-[#8A3F21]">Código (ex: A01, B01)</label>
               <Input data-testid="affiliate-code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="Gerado do nome" className="h-11 rounded-xl border-[#EED3C3] bg-white text-[#2E1B12]" />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-[#8A3F21]">Comissão %</label>
-              <Input data-testid="affiliate-pct" type="number" min="0" max="100" value={pct} onChange={(e) => setPct(e.target.value)} className="h-11 rounded-xl border-[#EED3C3] bg-white text-[#2E1B12]" />
             </div>
           </div>
           <div className="mt-3 grid gap-3 md:grid-cols-[0.7fr_1.4fr_auto] md:items-end">
@@ -229,40 +210,43 @@ export default function AffiliatesAdmin() {
         {/* Lista */}
         <div className="mt-8 overflow-hidden rounded-[24px] border border-[#EED3C3] bg-white/85">
           <div className="overflow-x-auto">
-            <table data-testid="affiliates-table" className="w-full min-w-[820px] text-left text-sm">
+            <table data-testid="affiliates-table" className="w-full min-w-[920px] text-left text-sm">
               <thead>
                 <tr className="border-b border-[#EED3C3] text-[11px] uppercase tracking-wide text-[#8A3F21]">
                   <th className="px-4 py-3">Afiliado</th>
+                  <th className="px-4 py-3">Código</th>
                   <th className="px-4 py-3 text-center">Geração</th>
+                  <th className="px-4 py-3">Indicador</th>
                   <th className="px-4 py-3">Link</th>
                   <th className="px-4 py-3 text-center">Cliques</th>
                   <th className="px-4 py-3 text-center">Vendas</th>
                   <th className="px-4 py-3 text-right">Receita</th>
-                  <th className="px-4 py-3 text-center">Comissão %</th>
-                  <th className="px-4 py-3 text-right">A pagar</th>
+                  <th className="px-4 py-3 text-right">Comissão</th>
                   <th className="px-4 py-3 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 && (
-                  <tr><td colSpan={9} className="px-4 py-10 text-center text-[#7D6656]">Nenhum afiliado ainda. Crie o primeiro acima.</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-10 text-center text-[#7D6656]">Nenhum afiliado ainda. Crie o primeiro acima.</td></tr>
                 )}
                 {items.map((a) => (
                   <tr key={a.code} data-testid={`affiliate-row-${a.code}`} className="border-b border-[#F0E1D5] last:border-0">
                     <td className="px-4 py-3">
                       <p className="font-bold text-[#2E1B12]">{a.name}</p>
-                      <p className="text-[11px] font-mono text-[#8A3F21]">{a.code}</p>
                     </td>
+                    <td className="px-4 py-3 font-mono text-[12px] font-bold text-[#8A3F21]">{a.code}</td>
                     <td className="px-4 py-3 text-center">
                       {(a.generation || "A").toUpperCase() === "B" ? (
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span data-testid={`gen-${a.code}`} className="inline-flex items-center rounded-full bg-[#EDE3F5] px-2.5 py-1 text-[11px] font-bold text-[#7A3E9D]">Geração B</span>
-                          {a.parent_affiliate_id && (
-                            <span className="text-[10px] text-[#7D6656]">↳ por <b className="font-mono text-[#8A3F21]">{a.parent_affiliate_id}</b></span>
-                          )}
-                        </div>
+                        <span data-testid={`gen-${a.code}`} className="inline-flex items-center rounded-full bg-[#EDE3F5] px-2.5 py-1 text-[11px] font-bold text-[#7A3E9D]">Geração B</span>
                       ) : (
                         <span data-testid={`gen-${a.code}`} className="inline-flex items-center rounded-full bg-[#F4E1D5] px-2.5 py-1 text-[11px] font-bold text-[#8A3F21]">Geração A</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3" data-testid={`parent-${a.code}`}>
+                      {(a.generation || "A").toUpperCase() === "B" && a.parent_affiliate_id ? (
+                        <span className="text-[12px] text-[#5F4A3F]">Indicado por <b className="font-mono text-[#8A3F21]">{a.parent_affiliate_id}</b></span>
+                      ) : (
+                        <span className="text-[12px] text-[#B7A99E]">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -274,15 +258,12 @@ export default function AffiliatesAdmin() {
                     <td className="px-4 py-3 text-center font-semibold text-[#2E1B12]">{a.clicks}</td>
                     <td className="px-4 py-3 text-center font-semibold text-[#2E1B12]">{a.sales}</td>
                     <td className="px-4 py-3 text-right font-semibold text-[#2E1B12]">{BRL(a.revenue)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <Input
-                        data-testid={`pct-${a.code}`}
-                        type="number" min="0" max="100" defaultValue={a.commission_pct}
-                        onBlur={(e) => { if (Number(e.target.value) !== a.commission_pct) saveCommission(a.code, e.target.value); }}
-                        className="mx-auto h-9 w-20 rounded-lg border-[#EED3C3] bg-white text-center text-[#2E1B12]"
-                      />
+                    <td className="px-4 py-3 text-right">
+                      <span data-testid={`commission-${a.code}`} className="font-bold text-[#8A3F21]">{BRL(a.commission)}</span>
+                      {(a.generation || "A").toUpperCase() === "A" && a.override_commission > 0 && (
+                        <p className="text-[10px] text-[#7D6656]">inclui {BRL(a.override_commission)} da geração B</p>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-right font-bold text-[#8A3F21]">{BRL(a.commission)}</td>
                     <td className="px-4 py-3 text-center">
                       <button data-testid={`delete-${a.code}`} onClick={() => remove(a.code)} className="grid h-8 w-8 place-items-center rounded-lg text-[#B91C1C] hover:bg-[#FBE9E9]">
                         <Trash2 className="h-4 w-4" />
@@ -295,9 +276,14 @@ export default function AffiliatesAdmin() {
           </div>
         </div>
 
-        <p className="mt-4 flex items-center gap-2 text-[11px] text-[#7D6656]">
-          <Link2 className="h-3.5 w-3.5" /> O link do afiliado (<b>?ref=CODIGO</b>) atribui a venda automaticamente — no Mercado Pago e no Stripe. A comissão é paga manualmente por você.
-        </p>
+        <div className="mt-4 space-y-1.5 text-[11px] text-[#7D6656]">
+          <p className="flex items-center gap-2">
+            <Link2 className="h-3.5 w-3.5" /> O link do afiliado (<b>?ref=CODIGO</b>) atribui a venda automaticamente — no Mercado Pago e no Stripe. A comissão só conta quando o pagamento é aprovado.
+          </p>
+          <p className="flex items-center gap-2">
+            <BadgePercent className="h-3.5 w-3.5" /> <b>Regra fixa:</b> venda direta de um A → A ganha 50%. Venda de um B → B ganha 30% e o A indicador ganha 30% (automático). A comissão é paga manualmente por você.
+          </p>
+        </div>
       </div>
     </div>
   );

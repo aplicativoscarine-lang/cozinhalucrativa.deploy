@@ -18,7 +18,7 @@ const LOOKUP_KEY = "cozinha_lucrativa_57";
 const SHOW_STRIPE = false;
 
 const FEATURES = [
-  "Acesso a todos os 10 cursos (todas as modalidades)",
+  "Acesso a todos os 11 cursos (todas as modalidades)",
   "Calculadora de preço e lucro ilimitada",
   "Vitrine pública para vender sob encomenda",
   "Controle de encomendas e clientes",

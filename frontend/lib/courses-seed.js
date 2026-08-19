@@ -383,7 +383,7 @@ export const COURSES_SEED = [
     slug: "marmita-fitness",
     title: "Marmitas Fitness Lucrativas",
     tagline: "Monte e venda marmitas fitness congeladas com alta procura e renda recorrente toda semana.",
-    description: "Curso completo de marmitas fitness: das bases (carne, frango, arroz integral, legumes e feijão) às marmitas prontas de frango, carne e peixe, além de higiene, embalagem e um bônus de sanduíche natural. 6 módulos e 28 aulas em vídeo passo a passo para você começar a lucrar com comida saudável.",
+    description: "Curso completo de marmitas fitness: das bases (carne, frango, arroz integral, legumes e feijão) às marmitas prontas de frango, carne e peixe, além de higiene, embalagem e um bônus de sanduíche natural. Aulas em vídeo passo a passo para você começar a lucrar com comida saudável.",
     instructor: "Cozinha Lucrativa",
     duration: "3h 30min",
     level: "Iniciante",

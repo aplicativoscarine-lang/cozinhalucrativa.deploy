@@ -44,3 +44,26 @@ do sistema de afiliados para o modelo de **2 gerações (A/B)** com indicador (p
 - Configurar credenciais reais de pagamento: `MP_ACCESS_TOKEN` (Mercado Pago) e/ou Stripe real.
 - (Opcional) Override de comissão de geração A sobre vendas dos B.
 - Publicar em produção pelo botão Deploy.
+
+## Sessão 2026-08-19 (parte 2) — Regras A/B definitivas + padronização Marmitas
+### Comissões A/B (fixas v1) — `backend/commissions.py`
+- Venda direta A → A 50% · plataforma 50%. Venda B → B 30% · A indicador 30% · plataforma 40%.
+- Override do A é automático (independe de o A vender), via `parent_affiliate_id`.
+- Comissão só definitiva com pagamento aprovado (MP "approved" / Stripe "paid"); pendente/recusado/estornado = void (excluído da agregação).
+- Registro de venda gravado no pedido (mp_orders/payment_transactions): gross/net, seller/indicador code+geração, comissões, plataforma, commission_status.
+- Painel admin: colunas Afiliado | Código | Geração | Indicador | Cliques | Vendas | Receita | Comissão (removido o % editável; regra é fixa). "Indicado por A01" para B.
+- Verificado por testing_agent: 12/12 backend (cenários 1-4 + validações). ADMIN_EMAILS = aplicativos.carine@gmail.com, casadalize2026@gmail.com; TEACHER_EMAIL = casadalize2026@gmail.com.
+
+### Padronização Marmitas Fitness
+- Adicionado ao catálogo da landing (`src/screens/Landing.jsx` array COURSES) logo após "Lanches Kids", mesmo componente OpportunityCard. price="≈ R$ 25 / unidade", volume="50 marmitas por semana", investment="R$ 150–400". Contadores 10→11 (landing + /planos).
+- Página interna `/curso/marmita-fitness` já usa o padrão dos demais (CourseDetail renderiza modules/lessons). Removido "6 módulos e 28 aulas" da descrição (contradizia o meta "7 módulos" = 6 + Apostila Oficial, padrão de todos os cursos).
+- Lint + build OK. next dev restaurado (rm -rf .next após build).
+
+### Pagamento real (preparado, NÃO ativar automaticamente)
+- MP_ACCESS_TOKEN / MP_WEBHOOK_SECRET permanecem vazios (credenciais reais só via Deploy pelo usuário). Não usar chaves de teste em produção. BETA_MODE=true mantido para testes; não mudar para false automaticamente.
+- APP_URL/REACT_APP_BACKEND_URL sincronizados com o preview atual (resume-deploy-8).
+
+### Backlog (follow-ups do review)
+- DELETE de afiliado A com filhos B: adicionar guarda (409) ou reparent para não perder o override.
+- Campos legados commission_rate/commission_pct ainda graváveis (ignorados no cálculo) — remover/marcar read-only.
+- Confirmar se Marmitas precisa de módulo "Página de Vendas" como outros cursos.

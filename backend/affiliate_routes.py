@@ -24,6 +24,8 @@ from fastapi import APIRouter, HTTPException, Request
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 
+from commissions import DIRECT_A_SELLER_RATE, B_SELLER_RATE, B_PARENT_RATE
+
 load_dotenv()
 
 router = APIRouter(prefix="/api/affiliates", tags=["affiliates"])
@@ -246,36 +248,66 @@ async def list_affiliates(request: Request):
     affs = await db.affiliates.find({}, projection={"_id": 0}).sort("created_at", -1).to_list(500)
     codes = [a["code"] for a in affs]
     stats = await _stats_for_codes(codes)
+
+    gen_by_code = {a["code"]: (a.get("generation") or "A").upper() for a in affs}
+    parent_by_code = {a["code"]: a.get("parent_affiliate_id") for a in affs}
+    revenue_by_code = {c: float(stats.get(c, {}).get("revenue", 0.0)) for c in codes}
+    # Filhos de cada A (para o override automático de 30% sobre vendas dos B).
+    children = {}
+    for c in codes:
+        p = parent_by_code.get(c)
+        if p:
+            children.setdefault(p, []).append(c)
+
     items = []
     totals = {"clicks": 0, "sales": 0, "revenue": 0.0, "commission": 0.0}
     for a in affs:
-        s = stats.get(a["code"], {"clicks": 0, "sales": 0, "revenue": 0.0})
-        pct = float(a.get("commission_pct", DEFAULT_COMMISSION_PCT))
-        commission = round(s["revenue"] * pct / 100.0, 2)
+        code = a["code"]
+        gen = gen_by_code[code]
+        s = stats.get(code, {"clicks": 0, "sales": 0, "revenue": 0.0})
+        own_rev = float(s["revenue"])
+        if gen == "B":
+            own_commission = own_rev * B_SELLER_RATE
+            override_commission = 0.0
+            effective_rate = round(B_SELLER_RATE * 100)
+        else:  # A
+            own_commission = own_rev * DIRECT_A_SELLER_RATE
+            override_rev = sum(revenue_by_code.get(ch, 0.0) for ch in children.get(code, []))
+            override_commission = override_rev * B_PARENT_RATE
+            effective_rate = round(DIRECT_A_SELLER_RATE * 100)
+        commission = round(own_commission + override_commission, 2)
         ca = a.get("created_at")
         items.append({
-            "code": a["code"],
+            "code": code,
             "name": a.get("name"),
             "note": a.get("note", ""),
-            "commission_pct": pct,
-            "commission_rate": pct,
-            "generation": (a.get("generation") or "A").upper(),
-            "parent_affiliate_id": a.get("parent_affiliate_id"),
+            "generation": gen,
+            "parent_affiliate_id": parent_by_code.get(code),
+            "commission_rate_pct": effective_rate,
+            "override_commission": round(override_commission, 2),
             "active": a.get("active", True),
             "created_at": ca.isoformat() if hasattr(ca, "isoformat") else ca,
             "clicks": s["clicks"],
             "sales": s["sales"],
-            "revenue": round(s["revenue"], 2),
+            "revenue": round(own_rev, 2),
             "commission": commission,
             "conversion": round((s["sales"] / s["clicks"]) * 100, 1) if s["clicks"] else 0.0,
         })
         totals["clicks"] += s["clicks"]
         totals["sales"] += s["sales"]
-        totals["revenue"] += s["revenue"]
+        totals["revenue"] += own_rev
         totals["commission"] += commission
     totals["revenue"] = round(totals["revenue"], 2)
     totals["commission"] = round(totals["commission"], 2)
-    return {"items": items, "totals": totals, "default_commission_pct": DEFAULT_COMMISSION_PCT}
+    return {
+        "items": items,
+        "totals": totals,
+        "rules": {
+            "direct_a_seller_pct": round(DIRECT_A_SELLER_RATE * 100),
+            "b_seller_pct": round(B_SELLER_RATE * 100),
+            "b_parent_pct": round(B_PARENT_RATE * 100),
+        },
+    }
 
 
 # --- Admin: atualizar afiliado ---
